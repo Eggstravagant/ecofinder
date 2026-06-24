@@ -47,7 +47,7 @@ if source_file is not None:
                     workspace_name="dylans-workspace-gchst",
                     workflow_id="trash-detection-workflow-1782289148660",
                     images={"image": temp_path},
-                    parameters={"classes": "paper, plastic, glass"},
+                    parameters={"classes": "paper, plastic, glass, metal, cardboard"},
                     use_cache=True  
                 )
                 
