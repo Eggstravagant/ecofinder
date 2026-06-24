@@ -56,14 +56,19 @@ if uploaded_file is not None:
                     annotated_image = original_image.copy()
                     draw = ImageDraw.Draw(annotated_image)
                     
-                    # --- NEW FONT SIZE CODE ---
-                    # Adjust 'size=40' up or down depending on how big you want the text
+                    # 🌟 DYNAMIC SCALING SETUP 🌟
+                    img_width, img_height = annotated_image.size
+                    
+                    # Compute box thickness and font size based on image width
+                    box_width = max(2, int(img_width * 0.005))       # 0.5% of image width
+                    dynamic_size = max(12, int(img_width * 0.025))   # 2.5% of image width
+                    
                     try:
-                        font = ImageFont.truetype("arial.ttf", size=40)
+                        font = ImageFont.truetype("arial.ttf", size=dynamic_size)
                     except IOError:
                         # Fallback for systems without Arial installed
                         try:
-                            font = ImageFont.truetype("DejaVuSans.ttf", size=40)
+                            font = ImageFont.truetype("DejaVuSans.ttf", size=dynamic_size)
                         except IOError:
                             font = ImageFont.load_default()
                     # ---------------------------
@@ -78,10 +83,9 @@ if uploaded_file is not None:
                         
                         label = f"{item.get('class')} ({item.get('confidence'):.0%})"
                         
-                        # Draw bounding box outline (Bright Green, 4 pixels thick)
-                        draw.rectangle([x0, y0, x1, y1], outline="#00FF00", width=4)
+                        # Draw bounding box outline using our dynamic box_width
+                        draw.rectangle([x0, y0, x1, y1], outline="#00FF00", width=box_width)
                         
-                        # --- NEW ADJUSTABLE LABELED BOX ---
                         # Automatically calculate text dimensions for the background box
                         try:
                             # Pillow 10.0.0+ method
@@ -90,7 +94,7 @@ if uploaded_file is not None:
                             # Older Pillow versions fallback
                             text_w, text_h = draw.textsize(label, font=font)
                             
-                        # Draw a small text background box and label text
+                        # Draw a small text background box and label text relative to text heights
                         draw.rectangle([x0, y0 - text_h - 6, x0 + text_w + 10, y0], fill="#00FF00")
                         draw.text((x0 + 5, y0 - text_h - 4), label, fill="#000000", font=font)
                     
