@@ -1,76 +1,252 @@
-import cv2
+import streamlit as st
+
 from inference_sdk import InferenceHTTPClient
+
 from PIL import Image, ImageDraw, ImageFont
 
-# 1. Connect to Roboflow Client
-client = InferenceHTTPClient(
-    api_url="https://serverless.roboflow.com",
-    api_key="zs2Fpdr6GYFftsJ7kQws"
-)
+import os
 
-# 2. Initialize your local webcam (0 is usually your default built-in camera)
-cap = cv2.VideoCapture(0)
 
-if not cap.isOpened():
-    print("Error: Could not open webcam.")
-    exit()
 
-print("🚀 Live Trash Detection Started! Press 'q' to quit.")
+# 1. Page Configuration & Title
 
-while True:
-    # Capture frame-by-frame
-    ret, frame = cap.read()
-    if not ret:
-        break
+st.set_page_config(page_title="TACO Trash Detection Tester", layout="centered")
 
-    # Convert the frame from BGR (OpenCV) to RGB (PIL)
-    img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    pil_img = Image.fromarray(img_rgb)
-    draw = ImageDraw.Draw(pil_img)
+st.title("🗑️ TACO Trash Detection Tester")
 
-    try:
-        # 3. Send frame to Roboflow Workflow Framework
-        result = client.run_workflow(
-            workspace_name="dylans-workspace-gchst",
-            workflow_id="trash-detection-workflow-1782289148660",
-            images={"image": pil_img},
-            parameters={"classes": "paper, plastic, glass, metal, cardboard"},
-            use_cache=True
-        )
+st.write("Scan your environment using live camera input or upload an image to detect trash items.")
 
-        # Parse data blocks
-        workflow_output = result[0] if isinstance(result, list) else result
-        predictions_data = workflow_output.get("predictions", {})
-        detected_items = predictions_data.get("predictions", [])
 
-        # 4. Draw bounding boxes on the frame
-        for item in detected_items:
-            w, h = item.get('width'), item.get('height')
-            x0 = item.get('x') - (w / 2)
-            y0 = item.get('y') - (h / 2)
-            x1 = item.get('x') + (w / 2)
-            y1 = item.get('y') + (h / 2)
 
-            label = f"{item.get('class')} ({item.get('confidence'):.0%})"
-            
-            # Draw green rectangle box
-            draw.rectangle([x0, y0, x1, y1], outline="#00FF00", width=3)
-            draw.text((x0 + 5, y0 - 15), label, fill="#00FF00")
+# 2. Connect to Roboflow Client
 
-    except Exception as e:
-        # If a single frame request times out, skip it gracefully to prevent screen freeze
-        pass
+@st.cache_resource
 
-    # Convert back to standard OpenCV format to display on desktop window screen
-    final_frame = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR) if 'np' in globals() else frame
-    
-    # Alternatively, parse directly with OpenCV format safely
-    cv2.imshow('TACO Live Trash Detection', final_frame)
+def get_inference_client():
 
-    # Break the loop when the user presses 'q' key
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    return InferenceHTTPClient(
 
-# Clean up window instances
-cap.release()
-cv2.destroyAllWindows()
+        api_url="https://serverless.roboflow.com",
+
+        api_key="zs2Fpdr6GYFftsJ7kQws"
+
+    )
+
+
+
+client = get_inference_client()
+
+
+
+# 3. Choose Input Method
+
+input_method = st.radio("Select Input Method:", ["📷 Live Camera", "📁 Upload Image"])
+
+
+
+source_file = None
+
+
+
+if input_method == "📷 Live Camera":
+
+    # Streamlit's built-in camera widget (works on phones and laptops)
+
+    source_file = st.camera_input("Take a snapshot of trash")
+
+else:
+
+    # Classic file uploader fallback
+
+    source_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+
+
+
+if source_file is not None:
+
+    # Load image via PIL
+
+    original_image = Image.open(source_file).convert("RGB")
+
+   
+
+    # Save the file temporarily for the SDK to read
+
+    temp_path = "temp_testing_image.jpg"
+
+    original_image.save(temp_path)
+
+   
+
+    # Button to run inference
+
+    if st.button("Run Trash Detection"):
+
+        with st.spinner("Analyzing image and drawing bounding boxes..."):
+
+            try:
+
+                # 4. Run your workflow
+
+                result = client.run_workflow(
+
+                    workspace_name="dylans-workspace-gchst",
+
+                    workflow_id="trash-detection-workflow-1782289148660",
+
+                    images={"image": temp_path},
+
+                    parameters={"classes": "paper, plastic, glass, metal, cardboard"},
+
+                    use_cache=True  
+
+                )
+
+               
+
+                # Parse Response Data
+
+                workflow_output = result[0] if isinstance(result, list) else result
+
+                predictions_data = workflow_output.get("predictions", {})
+
+                detected_items = predictions_data.get("predictions", [])
+
+                trash_count = workflow_output.get('trash_count', 0)
+
+               
+
+                st.success("Analysis Complete!")
+
+                st.metric(label="Total Trash Items Counted", value=trash_count)
+
+               
+
+                if detected_items:
+
+                    # 5. Draw Bounding Boxes onto a copy of the image
+
+                    annotated_image = original_image.copy()
+
+                    draw = ImageDraw.Draw(annotated_image)
+
+                   
+
+                    # 🌟 DYNAMIC SCALING SETUP 🌟
+
+                    img_width, img_height = annotated_image.size
+
+                   
+
+                    # Compute box thickness and font size based on image width
+
+                    box_width = max(2, int(img_width * 0.005))       # 0.5% of image width
+
+                    dynamic_size = max(12, int(img_width * 0.025))   # 2.5% of image width
+
+                   
+
+                    try:
+
+                        font = ImageFont.truetype("arial.ttf", size=dynamic_size)
+
+                    except IOError:
+
+                        # Fallback for systems without Arial installed
+
+                        try:
+
+                            font = ImageFont.truetype("DejaVuSans.ttf", size=dynamic_size)
+
+                        except IOError:
+
+                            font = ImageFont.load_default()
+
+
+
+                    for item in detected_items:
+
+                        w = item.get('width')
+
+                        h = item.get('height')
+
+                        x0 = item.get('x') - (w / 2)
+
+                        y0 = item.get('y') - (h / 2)
+
+                        x1 = item.get('x') + (w / 2)
+
+                        y1 = item.get('y') + (h / 2)
+
+                       
+
+                        label = f"{item.get('class')} ({item.get('confidence'):.0%})"
+
+                       
+
+                        # Draw bounding box outline using our dynamic box_width
+
+                        draw.rectangle([x0, y0, x1, y1], outline="#00FF00", width=box_width)
+
+                       
+
+                        # Automatically calculate text dimensions for the background box
+
+                        try:
+
+                            # Pillow 10.0.0+ method
+
+                            text_w, text_h = draw.textbbox((0, 0), label, font=font)[2:]
+
+                        except AttributeError:
+
+                            # Older Pillow versions fallback
+
+                            text_w, text_h = draw.textsize(label, font=font)
+
+                           
+
+                        # Draw a small text background box and label text relative to text heights
+
+                        draw.rectangle([x0, y0 - text_h - 6, x0 + text_w + 10, y0], fill="#00FF00")
+
+                        draw.text((x0 + 5, y0 - text_h - 4), label, fill="#000000", font=font)
+
+                   
+
+                    # 6. Display the final annotated image
+
+                    st.image(annotated_image, caption="AI Predicted Bounding Boxes", use_container_width=True)
+
+                   
+
+                    # Optional: Detailed breakdown expanders underneath
+
+                    st.subheader("Raw Detection Breakdown")
+
+                    for item in detected_items:
+
+                        with st.expander(f"📦 {item.get('class').title()}"):
+
+                            st.write(f"**Confidence:** {item.get('confidence'):.2%}")
+
+                            st.write(f"**Bounding Box Dimensions:** Width: {item.get('width')}, Height: {item.get('height')}")
+
+                else:
+
+                    st.image(original_image, caption="Uploaded Image", use_container_width=True)
+
+                    st.info("No trash items detected based on current confidence thresholds.")
+
+                   
+
+            except Exception as e:
+
+                st.error(f"An error occurred: {e}")
+
+            finally:
+
+                if os.path.exists(temp_path):
+
+                    os.remove(temp_path)
+
