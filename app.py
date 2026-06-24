@@ -180,7 +180,7 @@ if source_file is not None:
 
                        
 
-                        label = f"{item.get('class')} ({item.get('confidence'):.0%})"
+                        label = f"{"recycleable"} ({item.get('confidence'):.0%})"
 
                        
 
