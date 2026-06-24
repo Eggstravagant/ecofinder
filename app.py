@@ -180,7 +180,7 @@ if source_file is not None:
 
                        
 
-                        label = f"{"item.get('class')"} ({item.get('confidence'):.0%})" # can be recycleable
+                        label = f"{item.get('class')} ({item.get('confidence'):.0%})" # can be recycleable
 
                        
 
