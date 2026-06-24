@@ -6,7 +6,7 @@ import os
 # 1. Page Configuration & Title
 st.set_page_config(page_title="TACO Trash Detection Tester", layout="centered")
 st.title("🗑️ TACO Trash Detection Tester")
-st.write("Upload an image below to run the object detection workflow and see the bounding boxes.")
+st.write("Scan your environment using live camera input or upload an image to detect trash items.")
 
 # 2. Connect to Roboflow Client
 @st.cache_resource
@@ -18,12 +18,21 @@ def get_inference_client():
 
 client = get_inference_client()
 
-# 3. File Uploader UI
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# 3. Choose Input Method
+input_method = st.radio("Select Input Method:", ["📷 Live Camera", "📁 Upload Image"])
 
-if uploaded_file is not None:
+source_file = None
+
+if input_method == "📷 Live Camera":
+    # Streamlit's built-in camera widget (works on phones and laptops)
+    source_file = st.camera_input("Take a snapshot of trash")
+else:
+    # Classic file uploader fallback
+    source_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+
+if source_file is not None:
     # Load image via PIL
-    original_image = Image.open(uploaded_file).convert("RGB")
+    original_image = Image.open(source_file).convert("RGB")
     
     # Save the file temporarily for the SDK to read
     temp_path = "temp_testing_image.jpg"
@@ -71,7 +80,6 @@ if uploaded_file is not None:
                             font = ImageFont.truetype("DejaVuSans.ttf", size=dynamic_size)
                         except IOError:
                             font = ImageFont.load_default()
-                    # ---------------------------
 
                     for item in detected_items:
                         w = item.get('width')
